@@ -13,6 +13,7 @@ public:
     bool status;
     bool operator==(const ztonStatus &ztons) const;
     void operator=(const ztonStatus &ztons);
+    bool hasToUpdate;
 
 };
 

@@ -16,6 +16,7 @@
 #include <QHostAddress>
 #include <QTableWidget>
 #include <QDebug>
+#include <QSettings>
 
 
 ZeroTierManager::ZeroTierManager(QWidget *parent)
@@ -28,11 +29,21 @@ ZeroTierManager::ZeroTierManager(QWidget *parent)
 
     QIcon icon = QIcon(":/zerotier-one");
     trayIcon->setIcon(icon);
-    trayIcon->show();
 
+
+    QStringList networks;
+    QSettings config("jimmy.stelzer","zerotier-one-gui");
+    networks = config.value("networks").toStringList();
+
+    foreach(auto network, networks){
+        ztonStatus net;
+        net.id = network;
+        configuratedNetwork.push_back(net);
+        addActionMenu(network, false);
+    }
+    updateTrayMenu();
     updateStatusTimer = new QTimer(this);
     connect(updateStatusTimer, &QTimer::timeout, this, QOverload<>::of(&ZeroTierManager::updateStatus));
-
     updateStatusTimer->start(500);
 
     ui->lstCurrentNetwork->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -43,6 +54,7 @@ ZeroTierManager::ZeroTierManager(QWidget *parent)
 
 
     ui->lstCurrentNetwork->verticalHeader()->hide();
+    trayIcon->show();
 }
 
 ZeroTierManager::~ZeroTierManager()
@@ -61,7 +73,7 @@ void ZeroTierManager::closeEvent(QCloseEvent *event)
 void ZeroTierManager::manageNetwork(bool checked)
 {
     Q_UNUSED(checked);
-
+    this->raise();
     this->show();
 }
 
@@ -78,11 +90,13 @@ void ZeroTierManager::createTrayIcon()
 {
     trayIconMenu = new QMenu(this);
     trayIconMenu->addAction(addAction);
-    trayIconMenu->addSeparator();
+    separatorAction = trayIconMenu->addSeparator();
     trayIconMenu->addAction(quitAction);
 
     trayIcon = new QSystemTrayIcon(this);
     trayIcon->setContextMenu(trayIconMenu);
+
+    connect(trayIcon, &QSystemTrayIcon::activated, this, &ZeroTierManager::trayActivated);
 }
 
 bool ZeroTierManager::checkServiceIsRunning()
@@ -136,10 +150,30 @@ void ZeroTierManager::copyAuthToken()
     }
 }
 
-void ZeroTierManager::addActionMenu(QString name)
+void ZeroTierManager::addActionMenu(QString name, bool check)
 {
     QAction *act = new QAction(name, this);
+    act->setChecked(check);
+    act->setCheckable(true);
     networkMeuActions.push_back(act);
+    connect(act, &QAction::triggered, this, &ZeroTierManager::trayMenuTriggered);
+}
+
+void ZeroTierManager::updateTrayMenu()
+{
+    foreach(auto netAct, networkMeuActions){
+        bool hasToInsert = true;
+        int dynamicActionsSize = trayIconMenu->actions().size() - 3 + 1;
+        for(int idx=1; idx < dynamicActionsSize; idx++){
+            if(trayIconMenu->actions().at(idx)->text().startsWith(netAct->text().mid(0,16))){
+                hasToInsert = false;
+                break;
+            }
+        }
+        if(hasToInsert){
+            trayIconMenu->insertAction(separatorAction, netAct);
+        }
+    }
 }
 
 void ZeroTierManager::updateStatus()
@@ -194,12 +228,16 @@ bool ZeroTierManager::startService()
 void ZeroTierManager::updateNetworkStatus()
 {
     QJsonDocument jsonDoc = getNetworkInformation();
-
+    QStringList networks;
     for(int i=0; i < configuratedNetwork.length(); i++){
+        networks << configuratedNetwork[i].id;
+        configuratedNetwork[i].hasToUpdate = (configuratedNetwork[i].status == false);
         configuratedNetwork[i].status = false;
         configuratedNetwork[i].ipv4 = "";
         configuratedNetwork[i].ipv6 = "";
     }
+    QSettings config("jimmy.stelzer","zerotier-one-gui");
+    config.setValue("networks", networks);
     if(!jsonDoc.isNull()){
         if(jsonDoc.isArray()){
             foreach(auto obj, jsonDoc.array()){
@@ -225,13 +263,32 @@ void ZeroTierManager::updateNetworkStatus()
                     if(idx == -1){
                         configuratedNetwork.push_back(nztonStatus);
                     }else{
+                        nztonStatus.hasToUpdate = (configuratedNetwork[idx].hasToUpdate && !nztonStatus.status);
                         configuratedNetwork[idx] = nztonStatus;
                     }
+
                 }
             }
         }
     }
 
+    foreach(auto action, networkMeuActions){
+        bool hasToRemove = true;
+        for(int i=0; i < configuratedNetwork.length(); i++){
+            if(action->text().startsWith(configuratedNetwork[i].id)){
+                hasToRemove = false;
+                if(configuratedNetwork[i].name.length() > 0){
+                    action->setText(configuratedNetwork[i].id + " (" + configuratedNetwork[i].name + ")");
+                }
+                action->setChecked(configuratedNetwork[i].status);
+            }
+        }
+        if(hasToRemove){
+            trayIconMenu->removeAction(action);
+            networkMeuActions.removeAll(action);
+            action->deleteLater();
+        }
+    }
 
     bool restoreSelection = false;
     QItemSelectionModel *select = ui->lstCurrentNetwork->selectionModel();
@@ -307,7 +364,6 @@ void ZeroTierManager::zerotierJoinNetwork(QString networkId)
     process.start("zerotier-cli", QStringList() << "join" << networkId);
     process.waitForFinished();
     QString output = process.readAllStandardOutput();
-    qDebug() << output;
 }
 
 void ZeroTierManager::zerotierLeaveNetwork(QString networkId)
@@ -316,7 +372,6 @@ void ZeroTierManager::zerotierLeaveNetwork(QString networkId)
     process.start("zerotier-cli", QStringList() << "leave" << networkId);
     process.waitForFinished();
     QString output = process.readAllStandardOutput();
-    qDebug() << output;
 }
 
 
@@ -340,7 +395,6 @@ void ZeroTierManager::on_btnToogleConnection_clicked()
     if(currentSelectedRow >= 0){
 
         QTableWidgetItem *item = ui->lstCurrentNetwork->item(currentSelectedRow, 0);
-        QJsonDocument jsonDoc = getNetworkInformation();
         if(isNetworkJoinedInZerotier(item->text())){
             zerotierLeaveNetwork(item->text());
         }else{
@@ -356,7 +410,6 @@ void ZeroTierManager::on_btnRemove_clicked()
 
     if(currentSelectedRow >= 0){
         QTableWidgetItem *item = ui->lstCurrentNetwork->item(currentSelectedRow, 0);
-        QJsonDocument jsonDoc = getNetworkInformation();
         if(isNetworkJoinedInZerotier(item->text())){
             zerotierLeaveNetwork(item->text());
 
@@ -367,6 +420,7 @@ void ZeroTierManager::on_btnRemove_clicked()
                 configuratedNetwork.removeAt(idx);
             }
         }
+        ui->lstCurrentNetwork->clearSelection();
     }
     updateNetworkStatus();
 }
@@ -374,21 +428,17 @@ void ZeroTierManager::on_btnRemove_clicked()
 void ZeroTierManager::on_btnInformation_clicked()
 {
     int currentSelectedRow = selectedNetwork();
-
+    bool hasInfo = false;
     if(currentSelectedRow >= 0){
         QTableWidgetItem *item = ui->lstCurrentNetwork->item(currentSelectedRow, 0);
         QJsonDocument jsonDoc = getNetworkInformation();
-        qDebug() << "info" << item->text();
-
         if(!jsonDoc.isNull()){
             if(jsonDoc.isArray()){
                 foreach(auto obj, jsonDoc.array()){
                     if(obj.isObject()){
                         QJsonObject jsonObj = obj.toObject();
                         if(jsonObj.value("id").toString() == item->text()){
-
-                            qDebug() << jsonObj;
-
+                            hasInfo = true;
                             NetworkInformation *info = new NetworkInformation(jsonObj, nullptr);
                             info->exec();
 
@@ -399,7 +449,9 @@ void ZeroTierManager::on_btnInformation_clicked()
                 }
             }
         }
-
+    }
+    if(!hasInfo){
+        QMessageBox::information(this,tr("Network Information"), tr("There is no information about this network at this moment. You must connect to this network to see this information."));
     }
 }
 
@@ -415,7 +467,29 @@ void ZeroTierManager::on_btnJoin_clicked()
         if(idx == -1){
             configuratedNetwork.push_back(nztonStatus);
         }
+        addActionMenu(nztonStatus.id, false);
+        updateTrayMenu();
         zerotierJoinNetwork(networkId);
     }
     updateNetworkStatus();
+}
+
+void ZeroTierManager::trayActivated(QSystemTrayIcon::ActivationReason reason)
+{
+    if(reason == QSystemTrayIcon::DoubleClick){
+        manageNetwork(false);
+    }
+}
+
+void ZeroTierManager::trayMenuTriggered(bool status)
+{
+    QAction* caller = qobject_cast<QAction*>(sender());
+    Q_ASSERT(caller != nullptr);
+    QString id = caller->text().mid(0,16);
+
+    if(isNetworkJoinedInZerotier(id) && status == false){
+        zerotierLeaveNetwork(id);
+    }else if (!isNetworkJoinedInZerotier(id) && status == true){
+        zerotierJoinNetwork(id);
+    }
 }

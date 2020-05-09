@@ -26,19 +26,14 @@ protected:
 
 private slots:
     void manageNetwork(bool checked);
-
     void on_btnOk_clicked();
-
     void on_lstCurrentNetwork_currentCellChanged(int currentRow, int currentColumn, int previousRow, int previousColumn);
-
     void on_btnToogleConnection_clicked();
-
     void on_btnRemove_clicked();
-
     void on_btnInformation_clicked();
-
     void on_btnJoin_clicked();
-
+    void trayActivated(QSystemTrayIcon::ActivationReason reason);
+    void trayMenuTriggered(bool status);
 private:
     void createActions();
     void createTrayIcon();
@@ -46,7 +41,8 @@ private:
     bool checkHavePkexec();
     bool checkUserToken();
     void copyAuthToken();
-    void addActionMenu(QString name);
+    void addActionMenu(QString name, bool check);
+    void updateTrayMenu();
     void updateStatus();
     bool startService();
     void updateNetworkStatus();
@@ -59,6 +55,7 @@ private:
     Ui::ZeroTierManager *ui;
     QAction *quitAction;
     QAction *addAction;
+    QAction *separatorAction;
     QList<QAction *> networkMeuActions;
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;
