@@ -32,7 +32,7 @@ jobs:
     
 
       - name: Configure
-        run: $RUNNER_WORKSPACE/bin/qmake CONFIG+=release
+        run: $Qt5_DIR/bin/qmake CONFIG+=release
             
       - name: build
         run: make
