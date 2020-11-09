@@ -1,3 +1,4 @@
+![example workflow file path](https://github.com/jimmystelzer/ZeroTierOneGUI/workflows/ZeroTierOneGUI%20Build/badge.svg)
 # ZeroTierOneGUI
 ZeroTierOneGUI is a free and opensource ZeroTier One GUI for manager the VPNs. This is a wrapper for the zerotier-cli command line tool.
 
