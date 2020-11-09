@@ -34,6 +34,8 @@ private slots:
     void on_btnJoin_clicked();
     void trayActivated(QSystemTrayIcon::ActivationReason reason);
     void trayMenuTriggered(bool status);
+    void openCentral(bool checked);
+
 private:
     void createActions();
     void createTrayIcon();
@@ -56,6 +58,8 @@ private:
     QAction *quitAction;
     QAction *addAction;
     QAction *separatorAction;
+    QAction *quitSeparatorAction;
+    QAction *openCentralAction;
     QList<QAction *> networkMeuActions;
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;

@@ -14,6 +14,9 @@ public:
     bool operator==(const ztonStatus &ztons) const;
     void operator=(const ztonStatus &ztons);
     bool hasToUpdate;
+    ~ztonStatus() = default;
+    ztonStatus();
+    ztonStatus(const ztonStatus &ztons);
 
 };
 

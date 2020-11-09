@@ -17,6 +17,7 @@
 #include <QTableWidget>
 #include <QDebug>
 #include <QSettings>
+#include <QDesktopServices>
 
 
 ZeroTierManager::ZeroTierManager(QWidget *parent)
@@ -84,6 +85,9 @@ void ZeroTierManager::createActions()
 
     addAction = new QAction(tr("&Manage network"), this);
     connect(addAction, &QAction::triggered, this, &ZeroTierManager::manageNetwork);
+
+    openCentralAction = new QAction(tr("ZeroTier &Central"), this);
+    connect(openCentralAction, &QAction::triggered, this, &ZeroTierManager::openCentral);
 }
 
 void ZeroTierManager::createTrayIcon()
@@ -91,6 +95,8 @@ void ZeroTierManager::createTrayIcon()
     trayIconMenu = new QMenu(this);
     trayIconMenu->addAction(addAction);
     separatorAction = trayIconMenu->addSeparator();
+    trayIconMenu->addAction(openCentralAction);
+    quitSeparatorAction = trayIconMenu->addSeparator();
     trayIconMenu->addAction(quitAction);
 
     trayIcon = new QSystemTrayIcon(this);
@@ -163,7 +169,7 @@ void ZeroTierManager::updateTrayMenu()
 {
     foreach(auto netAct, networkMeuActions){
         bool hasToInsert = true;
-        int dynamicActionsSize = trayIconMenu->actions().size() - 3 + 1;
+        int dynamicActionsSize = trayIconMenu->actions().size() - 4 + 1;
         for(int idx=1; idx < dynamicActionsSize; idx++){
             if(trayIconMenu->actions().at(idx)->text().startsWith(netAct->text().mid(0,16))){
                 hasToInsert = false;
@@ -492,4 +498,10 @@ void ZeroTierManager::trayMenuTriggered(bool status)
     }else if (!isNetworkJoinedInZerotier(id) && status == true){
         zerotierJoinNetwork(id);
     }
+}
+
+void ZeroTierManager::openCentral(bool checked)
+{
+    Q_UNUSED(checked);
+    QDesktopServices::openUrl(QUrl("https://my.zerotier.com", QUrl::TolerantMode));
 }
